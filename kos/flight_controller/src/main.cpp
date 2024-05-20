@@ -131,13 +131,13 @@ int main(void) {
     int32_t altt; 
     while (true) {
         fprintf(stderr, "===============\n");
-        if (getCoords(latitude, longitude, altitude))
+        if (!getCoords(latitude, longitude, altitude))
             fprintf(stderr, "Ошибка получения координат");
         else {
             latt = latitude / gpsCoef;
             longg = longitude / gpsCoef;
             altt = altitude / 1000;
-            fprintf(stderr, "Координаты:\n%f гр. широты\n%f гр. долготы\nВысота: %d м.\n");
+            fprintf(stderr, "Coords:\n%f deg. latitude\n%f deg. longitude\nHeight: %d m.\n", latt, longg, altt);
         }
         sleep(5);
     }
