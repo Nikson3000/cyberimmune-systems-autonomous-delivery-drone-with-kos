@@ -125,9 +125,22 @@ int main(void) {
     //If we get here, the drone is able to arm and start the mission
     //The flight is need to be controlled from now on
     //Also we need to check on ORVD, whether the flight is still allowed or it is need to be paused
-
-    while (true)
-        sleep(1000);
+    double gpsCoef = 10000000;
+    int32_t latitude, longitude, altitude;
+    double latt, longg;
+    int32_t altt; 
+    while (true) {
+        fprintf(stderr, "===============\n");
+        if (getCoords(latitude, longitude, altitude))
+            fprintf(stderr, "Ошибка получения координат");
+        else {
+            latt = latitude / gpsCoef;
+            longg = longitude / gpsCoef;
+            altt = altitude / 1000;
+            fprintf(stderr, "Координаты:\n%f гр. широты\n%f гр. долготы\nВысота: %d м.\n");
+        }
+        sleep(5);
+    }
 
     return EXIT_SUCCESS;
 }
