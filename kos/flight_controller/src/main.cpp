@@ -132,7 +132,7 @@ int main(void) {
     while (true) {
         fprintf(stderr, "===============\n");
         if (!getCoords(latitude, longitude, altitude))
-            fprintf(stderr, "Ошибка получения координат");
+            fprintf(stderr, "Receive error");
         else {
             latt = latitude / gpsCoef;
             longg = longitude / gpsCoef;
