@@ -52,6 +52,7 @@ build
 mav.parm
 mav.tlog
 mav.tlog.raw
+mavproxy/
 
 # ardupilot cache
 eeprom.bin
