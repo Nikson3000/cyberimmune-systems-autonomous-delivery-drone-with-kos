@@ -33,6 +33,7 @@
 
 # Build cache
 build
+kos/build*
 
 # clang-check
 *.plist
@@ -59,3 +60,5 @@ mavproxy/
 eeprom.bin
 logs
 terrain
+
+*.log
