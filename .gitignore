@@ -62,3 +62,4 @@ logs
 terrain
 
 *.log
+*.code-workspace
