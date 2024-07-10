@@ -17,6 +17,27 @@
 #define RETRY_REQUEST_DELAY_SEC 5
 #define FLY_ACCEPT_PERIOD_US 500000
 
+#define GPS_COEF 10000000.0
+#define LINE_WIDTH 8.0
+#define EATH_RADIUS 6371000.0
+struct Coords
+{
+    double latitude, longitude, altitude;
+    Coords() {
+        latitude = -1;
+        longitude = -1;
+        altitude = -1;
+    }
+    Coords (double lat, double lon, double alt) {
+        latitude = lat;
+        longitude = lon;
+        altitude = alt;
+    }
+};
+
+
+extern MissionCommand* commands;
+
 int sendSignedMessage(char* method, char* response, char* errorMessage, uint8_t delay) {
     char message[512] = {0};
     char signature[257] = {0};
@@ -41,6 +62,73 @@ int sendSignedMessage(char* method, char* response, char* errorMessage, uint8_t 
     }
 
     return 1;
+}
+int getCoordsTransform(Coords& coord) {
+    fprintf(stderr, "===============\n");
+    int32_t lati, longi, alti;
+    if (!getCoords(lati, longi, alti)) {
+        fprintf(stderr, "Receive error");
+        return 1;
+    }
+    else {
+        coord.latitude = lati / GPS_COEF;
+        coord.longitude = longi / GPS_COEF;
+        coord.altitude = alti / 1000.0;
+        fprintf(stderr, "Coords:\n%f deg. latitude\n%f deg. longitude\nHeight: %f m.\n", coord.latitude, coord.longitude, coord.altitude);
+        return 0;
+    }
+}
+
+double havDist(Coords coord1, Coords coord2) {
+    double lat1, lat2, lon1, lon2;
+    lat1 = coord1.latitude * M_PI / 180;
+    lat2 = coord2.latitude * M_PI / 180;
+    lon1 = coord1.longitude * M_PI / 180;
+    lon2 = coord2.longitude * M_PI / 180;
+    return 2*EATH_RADIUS*asin(sqrt(0.5*(1-cos(lat2-lat1)+cos(lat1)*cos(lat2)*(1-cos(lon2-lon1)))));
+}
+
+Coords normalCrossPoint (Coords wp1, Coords wp2, Coords curPt) {
+    double A[2][2], B[2], det;
+    double lat1, lat2, lat3, lon1, lon2, lon3;
+    lat1 = wp1.latitude * M_PI / 180;
+    lat2 = wp2.latitude * M_PI / 180;
+    lat3 = curPt.latitude * M_PI / 180;
+    lon1 = wp1.longitude * M_PI / 180;
+    lon2 = wp2.longitude * M_PI / 180;
+    lon3 = curPt.longitude * M_PI / 180;
+    Coords retStruct;
+    A[0][0] = (lat2 - lat1) / (lon2 - lon1);
+    A[0][1] = -1;
+    A[1][0] = (lon1 - lon2) / (lat2 - lat1);
+    A[1][1] = -1;
+    B[0] = lat1 - lon1 * (lat2 - lat1) / (lon2 - lon1);
+    B[1] = lat3 - lon3 * (lon1 - lon2) / (lat2 - lat1);
+    det = A[0][0] * A[1][1] - A[1][0] * A[0][1];
+    retStruct.longitude = (B[0] * A[1][1] - B[1] * A[0][1]) * (-1) / det / M_PI * 180;
+    retStruct.latitude = (B[1] * A[0][0] - B[0] * A[1][0]) * (-1) / det / M_PI * 180;
+    fprintf(stderr, "la %f lo %f\n", retStruct.latitude, retStruct.longitude);
+    return retStruct;
+}
+
+bool isOnTheWay(Coords prevWp, Coords nextWp, Coords curPt) {
+    Coords ncp = normalCrossPoint(prevWp, nextWp, curPt);
+    double hav;
+    hav = havDist(curPt, ncp);
+    fprintf(stderr, "hav = %f\n", hav);
+    if (havDist(curPt, ncp) < LINE_WIDTH / 2)
+        return 1;
+    else
+        return 0;
+}
+
+Coords cwpToCoords(CommandWaypoint cwp) {
+    Coords retStruct;
+    retStruct.altitude = cwp.altitude / 1000.0;
+    retStruct.latitude = double(cwp.latitude) / GPS_COEF;
+    retStruct.longitude = double(cwp.longitude) / GPS_COEF;
+    fprintf(stderr, "al %f la %f lo %f\n", retStruct.altitude, retStruct.latitude, retStruct.longitude);
+    return retStruct;
 }
 
 int main(void) {
@@ -125,21 +213,39 @@ int main(void) {
     //If we get here, the drone is able to arm and start the mission
     //The flight is need to be controlled from now on
     //Also we need to check on ORVD, whether the flight is still allowed or it is need to be paused
-    double gpsCoef = 10000000;
-    int32_t latitude, longitude, altitude;
-    double latt, longg;
-    int32_t altt; 
-    while (true) {
-        fprintf(stderr, "===============\n");
-        if (!getCoords(latitude, longitude, altitude))
-            fprintf(stderr, "Receive error");
-        else {
-            latt = latitude / gpsCoef;
-            longg = longitude / gpsCoef;
-            altt = altitude / 1000;
-            fprintf(stderr, "Coords:\n%f deg. latitude\n%f deg. longitude\nHeight: %d m.\n", latt, longg, altt);
+
+    Coords curCoord;
+    uint16_t prevWp, nextWp;
+    Coords prevCoords, nextCoords;
+    double hav;
+    nextWp = 1;
+    prevWp = 0;
+    fprintf(stderr, "1\n");
+    while (commands[nextWp].type != WAYPOINT) {
+            fprintf(stderr, "wp type = %d\n", commands[nextWp].type);
+            nextWp++;
+    }
+    fprintf(stderr, "2\n");
+    while (nextWp < 19) {
+        prevCoords = cwpToCoords(commands[prevWp].content.waypoint);
+        nextCoords = cwpToCoords(commands[nextWp].content.waypoint);
+        getCoordsTransform(curCoord);
+        hav = havDist(curCoord, nextCoords);
+        if (hav < 2)
+            prevWp = nextWp++;
+        while (commands[nextWp].type != WAYPOINT) {
+            fprintf(stderr, "wp type = %d\n", commands[nextWp].type);
+            nextWp++;
         }
-        sleep(5);
+        fprintf(stderr, "wp dist = %f\n", hav);
+        if (isOnTheWay(prevCoords, nextCoords, curCoord))
+            fprintf(stderr, "Inside\n");
+        else {
+            fprintf(stderr, "Outside\n");
+            //resumeFlight();
+        }
+        fprintf(stderr, "prev = %d\nnext = %d\n", prevWp, nextWp);
+        sleep(1);
     }
 
     return EXIT_SUCCESS;
