@@ -71,7 +71,7 @@ fi
 "$SDK_PREFIX/toolchain/bin/cmake" -G "Unix Makefiles" -B "$BUILD" \
       -D SIMULATION="TRUE" \
       -D SERVER="TRUE" \
-      -D BOARD_ID=$BOARD_ID \
+      -D BOARD_ID="21" \
       -D SIMULATOR_IP=$SIMULATOR_IP \
       -D SERVER_IP=$SERVER_IP \
       -D CMAKE_BUILD_TYPE:STRING=Debug \
